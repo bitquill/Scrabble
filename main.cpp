@@ -56,9 +56,10 @@ int play();
 bool gameIsOver(Game game);
 Game playTurn(Game game);
 bool validWord(string word);
-bool validPosition(Game game, string word, int col, int row, char dir);
+int wordToPieces(string word, Piece pieces[]);
+bool validPosition(Game game, Piece word[], int wordTam, int col, int row, char dir);
 Game putWord(Game game, string word, int col, int row, char dir);
-bool previewWord(Game game, string word, int col, int row, char dir);
+bool previewWord(Game game, Piece word[], int wordTam, int col, int row, char dir);
 Board copyBoard(Board original);
 
 // Menu
@@ -231,20 +232,24 @@ bool gameIsOver(Game game) {
 Game playTurn(Game game) {
     int playerTurn = game.turn%NUM_PLAYERS;
     printPlayerPieces(game.players[playerTurn]);
-    string word;
-    do {
-        cout << "Ingrese la palabra a jugar: ";
-        getline(cin, word);
-        // word to lower
-        for(int i = 0; i < word.length(); i++) {
-            word[i] = (char) tolower(word[i]);
-        }
-    } while(!validWord(word));
 
-    // Ask for position
+    // Ask for word
+    string word;
     int row;
     char dir, col;
+    int piecesTam;
+    Piece pieces[BOARD_SIZE];
     do {
+        do {
+            cout << "Ingrese la palabra a jugar: ";
+            getline(cin, word);
+            // word to lower
+            for(int i = 0; i < word.length(); i++) {
+                word[i] = (char) tolower(word[i]);
+            }
+        } while(!validWord(word));
+
+        // Ask for position and direction
         do {
             cout << "Ingrese la posicion de la palabra (fila columna direccion): ";
             cout << "Posicion de la palabra (LETRA NUMERO ej. A 11): " << endl << ">";
@@ -255,13 +260,10 @@ Game playTurn(Game game) {
             cout << " - H: Horizontal" << endl;
             cout << " - V: Vertical" << endl;
             cin >> dir;
-        } while(!validPosition(game, word, col, row, dir));
-
-        // Word to upper
-        for(int i = 0; i < word.length(); i++) {
-            word[i] = (char) toupper(word[i]);
-        }
-    } while(!previewWord(game, word, col, row, dir));
+            piecesTam = wordToPieces(word, pieces);
+        } while(!validPosition(game, pieces, piecesTam, col, row, dir));
+    } while(!previewWord(game, pieces, piecesTam, col, row, dir));
+    
     game = putWord(game, word, col, row, dir);
     return game;
 }
@@ -287,14 +289,38 @@ bool validWord(string word) {
     return exists;
 }
 
-bool validPosition(Game game, string word, int col, int row, char dir) {
-    bool isInBoard = (col >= 0 && col <= 15) && (row >= 0 && row <= 15);
+int wordToPieces(string word, Piece pieces[]) {
+    for(int i = 0 ; i < word.length() ; i++) {
+        word[i] = toupper(word[i]);
+    }
+    int tam = 0;
+    for (int i = 0; i < word.length(); i++) {
+        Piece piece;
+        if (i < word.length() - 1) {
+            piece.letter = word.substr(i, 2);
+            if (piece.letter == "LL" || piece.letter == "CH" || piece.letter == "RR") {
+                i++;
+            } else {
+                piece.letter = word.substr(i, 1);
+            }
+        } else {
+            piece.letter = word[i];
+        }
+        pieces[tam] = piece;
+        tam++;
+    }
+    return tam;
+}
+
+bool validPosition(Game game, Piece word[], int wordTam, int col, int row, char dir) {
+    bool isInBoard = (col >= 0 && col <= BOARD_SIZE) && (row >= 0 && row <= BOARD_SIZE);
     bool validDirection = dir == 'H' || dir == 'V';
-    bool noOverFlow = (dir == 'H' && col + word.length() <= 15) || (dir == 'V' && row + word.length() <= 15);
-    bool validPosition = isInBoard && validDirection && noOverFlow;
+    bool noOverFlow = (dir == 'H' && col + wordTam <= BOARD_SIZE) || (dir == 'V' && row + wordTam <= BOARD_SIZE);
     bool passCenter = false;
-    for(int i = 0 ; i < word.length(); i++) {
-        if(col == 7 && row == 7) {
+    bool overlapDifferentLetter = false;
+
+    for(int i = 0 ; i < wordTam; i++) {
+        if(col == BOARD_SIZE/2 && row == BOARD_SIZE/2) {
             passCenter = true;
             break;
         }
@@ -305,10 +331,10 @@ bool validPosition(Game game, string word, int col, int row, char dir) {
             row++;
         }
     }
+
     bool isInCenterFirstTurn = game.turn == 0 && passCenter;
 
-    bool overlapDifferentLetter = false;
-    for(int i = 0; i < word.length(); i++) {
+    for(int i = 0; i < wordTam; i++) {
         string boardLetter;
         if(dir == 'H') {
             boardLetter = game.board.pieces[row][col + i].letter;
@@ -316,17 +342,11 @@ bool validPosition(Game game, string word, int col, int row, char dir) {
         else {
             boardLetter = game.board.pieces[row + i][col].letter;
         }
-        if(boardLetter != "") {
-            if(boardLetter.length() == 1 && boardLetter[0] != word[i]) {
-                overlapDifferentLetter = true;
-            }
-            else if(i < word.length()-1 && boardLetter.length() == 2 && (boardLetter[0] != word[i] || boardLetter[1] != word[i+1])) {
-                overlapDifferentLetter = true;
-            }
+        if((!boardLetter.empty() && boardLetter != "*") && (boardLetter != word[i].letter)) {
+            overlapDifferentLetter = true;
             break;
         }
     }
-
 
     // Show personalized error messages
     if(!isInBoard) {
@@ -344,7 +364,8 @@ bool validPosition(Game game, string word, int col, int row, char dir) {
     if(overlapDifferentLetter) {
         cout << "\tLa palabra se superpone con una letra diferente." << endl;
     }
-    return validPosition;
+
+    return isInBoard && validDirection && noOverFlow && isInCenterFirstTurn && !overlapDifferentLetter;
 }
 
 
@@ -352,32 +373,17 @@ Game putWord(Game game, string word, int col, int row, char dir){
     return game;
 }
 
-bool previewWord(Game game, string word, int col, int row, char dir) {
+bool previewWord(Game game, Piece word[], int wordTam, int col, int row, char dir) {
     Board previewBoard = copyBoard(game.board);
-    int pos = 0;
-    for (int i = 0; i < word.length(); i++) {
-        string piece;
-        if (i < word.length() - 1) {
-            piece = word.substr(i, 2);
-            if (piece == "LL" || piece == "CH" || piece == "RR") {
-2                i++;
-            } else {
-                piece = word.substr(i, 1);
-            }
-        } else {
-            piece = word[i];
-        }
-        cout << piece << endl;
+    for (int i = 0; i < wordTam; i++) {
         if (dir == 'H') {
-            previewBoard.pieces[row][col + pos].letter = piece;
-            pos++;
+            previewBoard.pieces[row][col + i] = word[i];
         } else {
-            previewBoard.pieces[row + pos][col].letter = piece;
-            pos++;
+            previewBoard.pieces[row + i][col] = word[i];
         }
     }
     printCompactBoard(previewBoard);
-    cout << "¿Desea jugar esta palabra? (S/N): ";
+    cout << "Desea jugar esta palabra? (S/N): ";
     char option;
     cin >> option;
     return option == 'S' || option == 's';
@@ -417,13 +423,13 @@ void Scrabble() {
 
 int menu() {
     if (isFirstTime()) {
-        cout << "¡Bienvenido a SCRABBLE! Por favor, ingrese los nombres de los jugadores." << endl;
+        cout << "Bienvenido a SCRABBLE! Por favor, ingrese los nombres de los jugadores." << endl;
         changePlayersNames();
         system("cls");
     }
 
     cout << "------------------------------------" << endl;
-    cout << "-   ¡Bienvenido a SCRABBLE!        -" << endl;
+    cout << "-   Bienvenido a SCRABBLE!        -" << endl;
     cout << "------------------------------------\n" << endl;
     string options[] = {
         "1. Cambiar nombre de jugadores",
