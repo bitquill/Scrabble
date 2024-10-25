@@ -1,0 +1,3 @@
+C:/Users/esteb/OneDrive/Documentos/Program/ayudas-intro/Scrabble/cmake-build-debug/CMakeFiles/Scrabble.dir
+C:/Users/esteb/OneDrive/Documentos/Program/ayudas-intro/Scrabble/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/esteb/OneDrive/Documentos/Program/ayudas-intro/Scrabble/cmake-build-debug/CMakeFiles/rebuild_cache.dir
