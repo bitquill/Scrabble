@@ -56,13 +56,17 @@ int play();
 bool gameIsOver(Game game);
 Game playTurn(Game game);
 Game askForWord(Game game);
+bool previewWord(Game game, Piece word[], int wordTam, int col, int row, char dir);
+Game putWord(Game game, string word, int col, int row, char dir);
+
+// Game rules
 bool validWord(string word);
-int wordToPieces(string word, Piece pieces[]);
 bool validPosition(Game game, Piece word[], int wordTam, int col, int row, char dir);
 bool passCenter(int wordTam, int col, int row, char dir);
 bool overlapDifferentLetter(Game game, Piece word[], int wordTam, int col, int row, char dir);
-Game putWord(Game game, string word, int col, int row, char dir);
-bool previewWord(Game game, Piece word[], int wordTam, int col, int row, char dir);
+
+// Utils
+int wordToPieces(string word, Piece pieces[]);
 Board copyBoard(Board original);
 
 // Menu
@@ -97,18 +101,16 @@ Game initializeGame() {
     return game;
 }
 
-Board initializeBoard() {
-    Board board;
-    Piece piece;
-    piece.value = 0;
-    piece.letter = "";
-    for(int i = 0; i < BOARD_SIZE; i++) {
-        for(int j = 0; j < BOARD_SIZE; j++) {
-            board.pieces[i][j] = piece;
-        }
+bool isFirstTime() {
+    fstream file(string(FILE_PATH)+"players.txt");
+    bool firstTime = !file.is_open();
+    if(file.is_open()) {
+        string name;
+        getline(file, name);
+        firstTime = firstTime || name.empty();
     }
-    board.pieces[7][7].letter = "*";
-    return board;
+    file.close();
+    return firstTime;
 }
 
 Bag initializeBag() {
@@ -145,6 +147,20 @@ Bag initializeBag() {
     return bag;
 }
 
+Board initializeBoard() {
+    Board board;
+    Piece piece;
+    piece.value = 0;
+    piece.letter = "";
+    for(int i = 0; i < BOARD_SIZE; i++) {
+        for(int j = 0; j < BOARD_SIZE; j++) {
+            board.pieces[i][j] = piece;
+        }
+    }
+    board.pieces[7][7].letter = "*";
+    return board;
+}
+
 void initializePlayers(Player players[]) {
     if(isFirstTime()) {
         cout << "Ups..." << endl;
@@ -174,18 +190,6 @@ void changePlayersNames() {
     file.close();
 }
 
-bool isFirstTime() {
-    fstream file(string(FILE_PATH)+"players.txt");
-    bool firstTime = !file.is_open();
-    if(file.is_open()) {
-        string name;
-        getline(file, name);
-        firstTime = firstTime || name.empty();
-    }
-    file.close();
-    return firstTime;
-}
-
 Bag shuffleBag(Bag bag) {
     srand(time(NULL));
     for(int i = 0; i < bag.numPieces; i++) {
@@ -208,7 +212,6 @@ Game assignPieces(Game game) {
     }
     return game;
 }
-
 
 /**************
  - GAME FLUX -
@@ -271,9 +274,57 @@ Game askForWord(Game game) {
         } while(!validPosition(game, pieces, piecesTam, col, row, dir));
     } while(!previewWord(game, pieces, piecesTam, col, row, dir));
 
-    return putWord(game, word, col, row, dir);
+    putWord(game, word, col, row, dir);
+    return game;
 }
 
+bool previewWord(Game game, Piece word[], int wordTam, int col, int row, char dir) {
+    Board previewBoard = copyBoard(game.board);
+    for (int i = 0; i < wordTam; i++) {
+        if (dir == 'H') {
+            previewBoard.pieces[row][col + i] = word[i];
+        } else {
+            previewBoard.pieces[row + i][col] = word[i];
+        }
+    }
+    printCompactBoard(previewBoard);
+    cout << "Desea jugar esta palabra? (S/N): ";
+    char option;
+    cin >> option;
+    return option == 'S' || option == 's';
+}
+
+Game putWord(Game game, string word, int col, int row, char dir){
+    // Pieces of the word
+    Piece pieces[word.length()];
+    int piecesTam = wordToPieces(word, pieces);
+
+    // Letters of the word that are in the board
+    string interceptedLetters[word.length()];
+    int interceptedTam = 0;
+
+    for(int i = 0 ; i < piecesTam ; i++) {
+        if(game.board.pieces[row][col].letter != "") {
+            interceptedLetters[interceptedTam] = game.board.pieces[row][col].letter;
+            interceptedTam++;
+        }
+        if(dir == 'H') {
+            col++;
+        }
+        else {
+            row++;
+        }
+    }
+
+
+
+    return game;
+}
+
+
+/**************
+ - GAME RULES -
+ **************/
 
 bool validWord(string word) {
     // File extracted from https://github.com/kamilmielnik/scrabble-dictionaries
@@ -294,29 +345,6 @@ bool validWord(string word) {
         cout << "La palabra ingresada es valida!\n" << endl;
     }
     return exists;
-}
-
-int wordToPieces(string word, Piece pieces[]) {
-    for(int i = 0 ; i < word.length() ; i++) {
-        word[i] = toupper(word[i]);
-    }
-    int tam = 0;
-    for (int i = 0; i < word.length(); i++) {
-        Piece piece;
-        if (i < word.length() - 1) {
-            piece.letter = word.substr(i, 2);
-            if (piece.letter == "LL" || piece.letter == "CH" || piece.letter == "RR") {
-                i++;
-            } else {
-                piece.letter = word.substr(i, 1);
-            }
-        } else {
-            piece.letter = word[i];
-        }
-        pieces[tam] = piece;
-        tam++;
-    }
-    return tam;
 }
 
 bool validPosition(Game game, Piece word[], int wordTam, int col, int row, char dir) {
@@ -347,6 +375,21 @@ bool validPosition(Game game, Piece word[], int wordTam, int col, int row, char 
     return isInBoard && validDirection && noOverFlow && isInCenterFirstTurn && !overlapDifferent;
 }
 
+bool passCenter(int wordTam, int col, int row, char dir) {
+    for(int i = 0 ; i < wordTam; i++) {
+        if(col == BOARD_SIZE/2 && row == BOARD_SIZE/2) {
+            return true;
+        }
+        if(dir == 'H') {
+            col++;
+        }
+        else {
+            row++;
+        }
+    }
+    return false;
+}
+
 bool overlapDifferentLetter(Game game, Piece word[], int wordTam, int col, int row, char dir) {
     for(int i = 0; i < wordTam; i++) {
         string boardLetter;
@@ -363,42 +406,32 @@ bool overlapDifferentLetter(Game game, Piece word[], int wordTam, int col, int r
     return false;
 }
 
-bool passCenter(int wordTam, int col, int row, char dir) {
-    for(int i = 0 ; i < wordTam; i++) {
-        if(col == BOARD_SIZE/2 && row == BOARD_SIZE/2) {
-            return true;
-        }
-        if(dir == 'H') {
-            col++;
-        }
-        else {
-            row++;
-        }
+
+/**********
+ - UTILS  -
+ **********/
+
+int wordToPieces(string word, Piece pieces[]) {
+    for(int i = 0 ; i < word.length() ; i++) {
+        word[i] = toupper(word[i]);
     }
-    return false;
-}
-
-
-
-
-Game putWord(Game game, string word, int col, int row, char dir){
-    return game;
-}
-
-bool previewWord(Game game, Piece word[], int wordTam, int col, int row, char dir) {
-    Board previewBoard = copyBoard(game.board);
-    for (int i = 0; i < wordTam; i++) {
-        if (dir == 'H') {
-            previewBoard.pieces[row][col + i] = word[i];
+    int tam = 0;
+    for (int i = 0; i < word.length(); i++) {
+        Piece piece;
+        if (i < word.length() - 1) {
+            piece.letter = word.substr(i, 2);
+            if (piece.letter == "LL" || piece.letter == "CH" || piece.letter == "RR") {
+                i++;
+            } else {
+                piece.letter = word.substr(i, 1);
+            }
         } else {
-            previewBoard.pieces[row + i][col] = word[i];
+            piece.letter = word[i];
         }
+        pieces[tam] = piece;
+        tam++;
     }
-    printCompactBoard(previewBoard);
-    cout << "Desea jugar esta palabra? (S/N): ";
-    char option;
-    cin >> option;
-    return option == 'S' || option == 's';
+    return tam;
 }
 
 Board copyBoard(Board original) {
@@ -411,9 +444,11 @@ Board copyBoard(Board original) {
     return newBoard;
 }
 
+
 /**********
  - MENU  -
  **********/
+
 void Scrabble() {
     int option = menu();
     while(option != 4) {
