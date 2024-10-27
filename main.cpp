@@ -4,6 +4,7 @@
 #include <string>
 #include <random>
 #include <ctime>
+#include <iomanip>
 
 using namespace std;
 
@@ -11,7 +12,7 @@ using namespace std;
 #define NUM_PIECES 98
 #define BOARD_SIZE 15
 #define NUM_PIECES_PLAYER 7
-#define FILE_PATH "../files/"
+#define FILE_PATH "./files/"
 
 struct Piece {
     string letter;
@@ -72,6 +73,7 @@ bool overlapDifferentLetter(Game game, Piece word[], int wordTam, int col, int r
 bool playerHasPieces(Game game, Piece word[], int wordTam, int col, int row, char dir);
 bool validAdyacentWords(Game game, Piece word[], int wordTam, int col, int row, char dir);
 bool validAdyacent(Game game, string letter, int col, int row, char dir);
+bool wordIsConnected(Game game, int wordTam, int col, int row, char dir);
 
 // Utils
 int wordToPieces(string word, Piece pieces[]);
@@ -262,13 +264,21 @@ Game askForWord(Game game) {
     char dir, col;
     int piecesTam;
     Piece pieces[BOARD_SIZE];
-    bool valid = false;
+
+    int playerTurn = game.turn%NUM_PLAYERS;
+    printPlayerPieces(game.players[playerTurn]);
     do {
         do {
             do {
+                printGameStatus(game);
+                printPlayerPieces(game.players[playerTurn]);
                 cout << "Ingrese la palabra a jugar (presione enter para saltar su turno): ";
                 getline(cin, word);
                 if(word == "") {
+                    cout << "Saltando turno..." << endl;
+                    cout << "Presione enter para continuar" << endl;
+                    getchar();
+                    printGameStatus(game);
                     return game;
                 }
             } while(!validWord(word));
@@ -489,7 +499,11 @@ bool validWord(string word) {
     }
     file.close();
     if(!exists) {
-        cout << "La palabra " << word << " no es valida.\n" << endl;
+        cout << endl << "------------------------------------" << endl;
+        cout << "La palabra " << word << " no es valida." << endl;
+        cout << "------------------------------------" << endl;
+        cout << "Presione enter para continuar..." << endl;
+        getchar();
     }
     else {
         cout << "La palabra " << word << " es valida!\n" << endl;
@@ -511,12 +525,19 @@ bool validMove(Game game, Piece word[], int wordTam, int col, int row, char dir)
     bool noOverFlow = !overFlow(wordTam, dir, col, row);
     bool noOverlapDifferent = !overlapDifferentLetter(game, word, wordTam, col, row, dir);
     bool isInCenterFirstTurn = game.turn == 0 && passCenter(wordTam, col, row, dir) || game.turn != 0;
+    bool isConnected = wordIsConnected(game, wordTam, col, row, dir) && game.turn != 0 || game.turn == 0;
     bool hasNeededPieces = playerHasPieces(game, word, wordTam, col, row, dir);
     bool validAdyacent = validAdyacentWords(game, word, wordTam, col, row, dir);
 
-    bool validMove = isInBoard && validDirection && noOverFlow && isInCenterFirstTurn && noOverlapDifferent && hasNeededPieces && validAdyacent;
+    bool validMove = isInBoard && validDirection && noOverFlow && isInCenterFirstTurn && noOverlapDifferent &&
+                     hasNeededPieces && validAdyacent && isConnected;
     if(!validMove){
+        cout << "------------------------------------" << endl;
         cout << "Esta palabra no se puede poner" << endl;
+        cout << "------------------------------------" << endl;
+        cout << "Presione enter para continuar" << endl;
+        getchar();
+        printGameStatus(game);
     }
     return validMove;
 }
@@ -525,10 +546,8 @@ bool overFlow(int wordTam, char dir, int col, int row){
     if((dir == 'H' && col + wordTam <= BOARD_SIZE) || (dir == 'V' && row + wordTam <= BOARD_SIZE)){
         return false;
     }
-    else{
-        cout << "\tLa palabra no cabe en la posicion ingresada." << endl;
-        return true;
-    }
+    cout << "\tLa palabra no cabe en la posicion ingresada." << endl;
+    return true;
 }
 
 bool passCenter(int wordTam, int col, int row, char dir) {
@@ -658,6 +677,27 @@ bool validAdyacent(Game game, string letter, int col, int row, char dir){
     }
     cout << "Adyacente: " << adyacent << endl;
     return validWord(adyacent);
+}
+
+bool wordIsConnected(Game game, int wordTam, int col, int row, char dir) {
+    for(int i = 0 ; i < wordTam ; i++) {
+        if(game.board.pieces[row][col].letter != "" ||
+           (row < BOARD_SIZE-1 && game.board.pieces[row+1][col].letter != "") ||
+           (row > 0 && game.board.pieces[row-1][col].letter != "") ||
+           (col < BOARD_SIZE-1 && game.board.pieces[row][col+1].letter != "") ||
+           (col > 0 && game.board.pieces[row][col-1].letter != "")
+           ) {
+            return true;
+        }
+        if(dir == 'H') {
+            col++;
+        }
+        else {
+            row++;
+        }
+    }
+    cout << "La palabra no esta conectada a otra palabra" << endl;
+    return false;
 }
 
 /**********
@@ -815,7 +855,6 @@ void printBoard(Board board) {
         // Print row contents
         for (int j = 0; j < BOARD_SIZE; j++) {
             cout << "| " << board.pieces[i][j].letter << " ";
-            cout << board.pieces[i][j].letter;
             if(board.pieces[i][j].letter == "") {
                 cout << ".";
             }
@@ -875,24 +914,29 @@ void printPlayerPieces(Player player) {
 }
 
 void printPlayersScores(Player players[]) {
+    int maxNameLength = 0;
     for (int i = 0; i < NUM_PLAYERS; i++) {
-        cout << players[i].name << ": " << players[i].score << endl;
+        if (players[i].name.length() > maxNameLength) {
+            maxNameLength = players[i].name.length();
+        }
     }
+
+    // Print player's scores
+    cout << "\t PUNTAJES" << endl;
+    cout << "-------------------------------" << endl;
+    for (int i = 0; i < NUM_PLAYERS; i++) {
+        cout << setw(maxNameLength) << left << players[i].name << setw(5) << right << players[i].score << endl;
+    }
+    cout << "-------------------------------" << endl;
 }
 
 void printGameStatus(Game game) {
-    cout << "----------------------" << endl;
+    system("cls");
+    cout << "-------------------------------" << endl;
+    cout << " Turno " << game.turn+1 << endl;
     cout << " Jugando " << game.players[game.turn%NUM_PLAYERS].name << endl;
-    cout << "----------------------" << endl;
-
-    // Print board status
-    printCompactBoard(game.board);
-    // printBoard(game.board);
-
-    // Print player's scores
-    cout << "-----------------" << endl;
-    cout << "Puntajes:" << endl;
+    cout << " Piezas restantes: " << game.bag.numPieces << endl;
+    cout << "-------------------------------" << endl;
     printPlayersScores(game.players);
-    // Print remaining pieces
-    cout << "\nPiezas restantes: " << game.bag.numPieces << endl;
+    printCompactBoard(game.board);
 }
