@@ -91,6 +91,7 @@ void printBoard(Board board);
 void printCompactBoard(Board board);
 void printPlayerPieces(Player player);
 void printPlayersScores(Player players[]);
+void gameHeader(Game game);
 void printGameStatus(Game game);
 
 int main() {
@@ -281,6 +282,7 @@ Game askForWord(Game game) {
                     printGameStatus(game);
                     return game;
                 }
+                cout << endl << "------------------------------------" << endl;
             } while(!validWord(word));
 
             cout << "Ingrese la posicion de la palabra (LETRA NUMERO DIRECCION ej. A 11 V): " << endl;
@@ -300,6 +302,8 @@ Game askForWord(Game game) {
 }
 
 bool previewWord(Game game, Piece word[], int wordTam, int col, int row, char dir) {
+    system("cls");
+    gameHeader(game);
     Board previewBoard = copyBoard(game.board);
     for (int i = 0; i < wordTam; i++) {
         if (dir == 'H') {
@@ -309,7 +313,7 @@ bool previewWord(Game game, Piece word[], int wordTam, int col, int row, char di
         }
     }
     printCompactBoard(previewBoard);
-    cout << "Desea jugar esta palabra? (S/N): ";
+    cout << endl << "Desea jugar esta palabra? (S/N): ";
     char option;
     cin >> option;
     getchar();
@@ -361,6 +365,9 @@ Game putWord(Game game, string word, int col, int row, char dir){
     else {
         start = initialRow;
     }
+
+    cout << "------------------------------------" << endl;
+    cout << "PALABRA: " << word << endl;
     int points = wordPoints(game, start, initialCol, initialRow, dir);
     int adyacentPoints = calculateAdyacentPoints(game, pivots, piecesTam, initialCol, initialRow, dir);
     cout << "------------------------------------" << endl;
@@ -383,7 +390,7 @@ int wordPoints(Game game, int start, int col, int row, char dir){
         row = start;
     }
     while(col < BOARD_SIZE && row < BOARD_SIZE && game.board.pieces[row][col].letter != ""){
-        cout << "Letra: " << game.board.pieces[row][col].letter << " Valor: " << game.board.pieces[row][col].value << endl;
+        cout << game.board.pieces[row][col].letter << "+" << game.board.pieces[row][col].value << "  ";
         points += game.board.pieces[row][col].value;
         if(dir == 'H'){
             col++;
@@ -392,6 +399,7 @@ int wordPoints(Game game, int start, int col, int row, char dir){
             row++;
         }
     }
+    cout << endl;
     return points;
 }
 
@@ -459,7 +467,8 @@ int getAdyacentWord(Game game, Piece adyacent[], int col, int row, char dir){
             inf++;
         }
     }
-    cout << "Adyacente: ";
+    cout << "------------------------------------" << endl;
+    cout << "ADAYACENTE FORMADA: ";
     for(int i = 0 ; i < adyacentTam ; i++){
         cout << adyacent[i].letter;
     }
@@ -499,14 +508,14 @@ bool validWord(string word) {
     }
     file.close();
     if(!exists) {
-        cout << endl << "------------------------------------" << endl;
         cout << "La palabra " << word << " no es valida." << endl;
         cout << "------------------------------------" << endl;
-        cout << "Presione enter para continuar..." << endl;
+        cout << "Presione enter para continuar" << endl;
         getchar();
     }
     else {
-        cout << "La palabra " << word << " es valida!\n" << endl;
+        cout << "La palabra " << word << " es valida!" << endl;
+        cout << "------------------------------------" << endl;
     }
     return exists;
 }
@@ -538,6 +547,12 @@ bool validMove(Game game, Piece word[], int wordTam, int col, int row, char dir)
         cout << "Presione enter para continuar" << endl;
         getchar();
         printGameStatus(game);
+    } else {
+        cout << "------------------------------------" << endl;
+        cout << "Esta palabra se puede poner" << endl;
+        cout << "------------------------------------" << endl;
+        cout << "Presione enter para continuar" << endl;
+        getchar();
     }
     return validMove;
 }
@@ -675,7 +690,8 @@ bool validAdyacent(Game game, string letter, int col, int row, char dir){
             inf++;
         }
     }
-    cout << "Adyacente: " << adyacent << endl;
+    cout << endl << "------------------------------------" << endl;
+    cout << "ADYACENTE " << adyacent << endl;
     return validWord(adyacent);
 }
 
@@ -792,18 +808,17 @@ int menu() {
     }
 
     cout << "------------------------------------" << endl;
-    cout << "-   Bienvenido a SCRABBLE!        -" << endl;
+    cout << "-       Bienvenido a SCRABBLE!     -" << endl;
     cout << "------------------------------------\n" << endl;
     string options[] = {
-            "1. Cambiar nombre de jugadores",
-            "2. Iniciar juego",
-            "3. Mostrar registro de resultados",
-            "4. Salir"
+            "[1] Cambiar nombre de jugadores",
+            "[2] Iniciar juego",
+            "[3] Mostrar registro de resultados",
+            "[4] Salir"
     };
     // Show menu
-    cout << "---------- MENU PRINCIPAL ----------" << endl;
     for (int i = 0; i < 4; i++) {
-        cout << "- " << options[i] << endl;
+        cout << "  " << options[i] << endl;
     }
     cout << "------------------------------------" << endl;
     cout << "Por favor, selecciona una opcion (1-4): ";
@@ -925,18 +940,22 @@ void printPlayersScores(Player players[]) {
     cout << "\t PUNTAJES" << endl;
     cout << "-------------------------------" << endl;
     for (int i = 0; i < NUM_PLAYERS; i++) {
-        cout << setw(maxNameLength) << left << players[i].name << setw(5) << right << players[i].score << endl;
+        cout << "   " << setw(maxNameLength) << left << players[i].name << setw(5) << right << players[i].score << endl;
     }
     cout << "-------------------------------" << endl;
 }
 
-void printGameStatus(Game game) {
-    system("cls");
+void gameHeader(Game game) {
     cout << "-------------------------------" << endl;
     cout << " Turno " << game.turn+1 << endl;
     cout << " Jugando " << game.players[game.turn%NUM_PLAYERS].name << endl;
     cout << " Piezas restantes: " << game.bag.numPieces << endl;
     cout << "-------------------------------" << endl;
+}
+
+void printGameStatus(Game game) {
+    system("cls");
+    gameHeader(game);
     printPlayersScores(game.players);
     printCompactBoard(game.board);
 }
