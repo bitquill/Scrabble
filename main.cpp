@@ -40,6 +40,7 @@ struct Game {
     Player players[NUM_PLAYERS];
     Board board;
     int turn = 0;
+    int skippedTurns = 0;
 };
 
 // Game initialization
@@ -57,6 +58,7 @@ int play();
 bool gameIsOver(Game game);
 Game playTurn(Game game);
 Game askForWord(Game game);
+Game skipTurn(Game game);
 bool previewWord(Game game, Piece word[], int wordTam, int col, int row, char dir);
 Game putWord(Game game, string word, int col, int row, char dir);
 int wordPoints(Game game, int start, int col, int row, char dir);
@@ -110,6 +112,7 @@ Game initializeGame() {
     initializePlayers(game.players);
     game.board = initializeBoard();
     game.turn = 0;
+    game.skippedTurns = 0;
     game.bag = shuffleBag(game.bag);
     game = assignPieces(game);
     return game;
@@ -244,7 +247,15 @@ int play() {
 }
 
 bool gameIsOver(Game game) {
-    return game.bag.numPieces == 0;
+    bool skippedTurns = game.skippedTurns == NUM_PLAYERS;
+    bool playerHasNoPieces = false;
+    // check if any player has no pieces
+    for(int i = 0; i < NUM_PLAYERS; i++) {
+        if(game.players[i].numPieces == 0) {
+            playerHasNoPieces = true;
+        }
+    }
+    return (playerHasNoPieces && game.bag.numPieces == 0) || skippedTurns;
 }
 
 Game playTurn(Game game) {
@@ -273,13 +284,14 @@ Game askForWord(Game game) {
             do {
                 printGameStatus(game);
                 printPlayerPieces(game.players[playerTurn]);
-                cout << "Ingrese la palabra a jugar (presione enter para saltar su turno): ";
+                cout << "Ingrese la palabra a jugar (presione enter para saltar turno y cambiar todas sus fichas): ";
                 getline(cin, word);
                 if(word == "") {
                     cout << "Saltando turno..." << endl;
                     cout << "Presione enter para continuar" << endl;
                     getchar();
                     printGameStatus(game);
+                    game = skipTurn(game);
                     return game;
                 }
                 cout << endl << "------------------------------------" << endl;
@@ -295,9 +307,23 @@ Game askForWord(Game game) {
             row--;
             piecesTam = wordToPieces(word, pieces);
         } while(!validMove(game, pieces, piecesTam, col, row, dir));
+        game.skippedTurns = 0;
     } while(!previewWord(game, pieces, piecesTam, col, row, dir));
 
     game = putWord(game, word, col, row, dir);
+    return game;
+}
+
+Game skipTurn(Game game) {
+    int playerTurn = game.turn%NUM_PLAYERS;
+    int playerPieces = 0;
+    for(int i = 0 ; i < game.players[playerTurn].numPieces && game.bag.numPieces ; i++) {
+        game.players[playerTurn].pieces[i] = game.bag.pieces[game.bag.numPieces - 1];
+        game.bag.numPieces--;
+        playerPieces++;
+    }
+    game.players[playerTurn].numPieces = playerPieces;
+    game.skippedTurns++;
     return game;
 }
 
