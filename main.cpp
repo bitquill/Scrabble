@@ -7,7 +7,7 @@
 
 using namespace std;
 
-#define NUM_PLAYERS 2
+#define NUM_PLAYERS 4
 #define NUM_PIECES 98
 #define BOARD_SIZE 15
 #define NUM_PIECES_PLAYER 7
@@ -58,16 +58,26 @@ Game playTurn(Game game);
 Game askForWord(Game game);
 bool previewWord(Game game, Piece word[], int wordTam, int col, int row, char dir);
 Game putWord(Game game, string word, int col, int row, char dir);
+int wordPoints(Game game, int start, int col, int row, char dir);
+int calculateAdyacentPoints(Game game, Piece pivots[], int wordTam, int col, int row, char dir);
+int getAdyacentWord(Game game, Piece adyacent[], int col, int row, char dir);
+Game givePlayerPieces(Game game);
 
 // Game rules
 bool validWord(string word);
-bool validPosition(Game game, Piece word[], int wordTam, int col, int row, char dir);
+bool validMove(Game game, Piece word[], int wordTam, int col, int row, char dir);
+bool overFlow(int wordTam, char dir, int col, int row);
 bool passCenter(int wordTam, int col, int row, char dir);
 bool overlapDifferentLetter(Game game, Piece word[], int wordTam, int col, int row, char dir);
+bool playerHasPieces(Game game, Piece word[], int wordTam, int col, int row, char dir);
+bool validAdyacentWords(Game game, Piece word[], int wordTam, int col, int row, char dir);
+bool validAdyacent(Game game, string letter, int col, int row, char dir);
 
 // Utils
 int wordToPieces(string word, Piece pieces[]);
 Board copyBoard(Board original);
+int pieceInArray(Piece pieces[], int piecesTam, Piece piece);
+int removePiece(Piece pieces[], int piecesTam, Piece piece);
 
 // Menu
 void Scrabble();
@@ -84,6 +94,7 @@ void printGameStatus(Game game);
 int main() {
     setlocale(LC_ALL, "es_ES.UTF-8");
     Scrabble();
+    // play();
 }
 
 /***********************
@@ -224,8 +235,6 @@ int play() {
         game = playTurn(game);
         cout << "Presione enter para continuar" << endl;
         getchar();
-        system("cls");
-        game.turn++;
     }
     printGameStatus(game);
     return 0;
@@ -238,9 +247,12 @@ bool gameIsOver(Game game) {
 Game playTurn(Game game) {
     int playerTurn = game.turn%NUM_PLAYERS;
     printPlayerPieces(game.players[playerTurn]);
-
     // Ask for word
     game = askForWord(game);
+    // Give player pieces if possible
+    game = givePlayerPieces(game);
+    // Next turn
+    game.turn++;
     return game;
 }
 
@@ -250,31 +262,30 @@ Game askForWord(Game game) {
     char dir, col;
     int piecesTam;
     Piece pieces[BOARD_SIZE];
+    bool valid = false;
     do {
         do {
             do {
-                cout << "Ingrese la palabra a jugar: ";
+                cout << "Ingrese la palabra a jugar (presione enter para saltar su turno): ";
                 getline(cin, word);
-                // word to lower
-                for(int i = 0; i < word.length(); i++) {
-                    word[i] = (char) tolower(word[i]);
+                if(word == "") {
+                    return game;
                 }
             } while(!validWord(word));
 
-            cout << "Ingrese la posicion de la palabra (fila columna direccion): ";
-            cout << "Posicion de la palabra (LETRA NUMERO ej. A 11): " << endl << ">";
-            cin >> col >> row;
+            cout << "Ingrese la posicion de la palabra (LETRA NUMERO DIRECCION ej. A 11 V): " << endl;
+            cout << " [H] Horizontal" << endl;
+            cout << " [V] Vertical" << endl;
+            cout << ">";
+            cin >> col >> row >> dir;
+            getchar();
             col = toupper(col) - 'A';
             row--;
-            cout << "Direccion de la palabra: " << endl;
-            cout << " - H: Horizontal" << endl;
-            cout << " - V: Vertical" << endl;
-            cin >> dir;
             piecesTam = wordToPieces(word, pieces);
-        } while(!validPosition(game, pieces, piecesTam, col, row, dir));
+        } while(!validMove(game, pieces, piecesTam, col, row, dir));
     } while(!previewWord(game, pieces, piecesTam, col, row, dir));
 
-    putWord(game, word, col, row, dir);
+    game = putWord(game, word, col, row, dir);
     return game;
 }
 
@@ -291,23 +302,41 @@ bool previewWord(Game game, Piece word[], int wordTam, int col, int row, char di
     cout << "Desea jugar esta palabra? (S/N): ";
     char option;
     cin >> option;
+    getchar();
     return option == 'S' || option == 's';
 }
 
 Game putWord(Game game, string word, int col, int row, char dir){
+    int initialCol = col;
+    int initialRow = row;
+
     // Pieces of the word
     Piece pieces[word.length()];
     int piecesTam = wordToPieces(word, pieces);
 
-    // Letters of the word that are in the board
-    string interceptedLetters[word.length()];
-    int interceptedTam = 0;
+    // Player pieces
+    int playerTurn = game.turn%NUM_PLAYERS;
+    Player player = game.players[playerTurn];
+
+    // Pivots
+    Piece pivots[piecesTam];
 
     for(int i = 0 ; i < piecesTam ; i++) {
-        if(game.board.pieces[row][col].letter != "") {
-            interceptedLetters[interceptedTam] = game.board.pieces[row][col].letter;
-            interceptedTam++;
+        Piece boardPiece = game.board.pieces[row][col];
+        if(boardPiece.letter == "" || boardPiece.letter == "*") { // Check if piece in board is empty
+            // Get player piece
+            int playerPiecePos = pieceInArray(player.pieces, player.numPieces, pieces[i]);
+            boardPiece = player.pieces[playerPiecePos];
+            // Remove piece from user
+            player.numPieces = removePiece(player.pieces, player.numPieces, boardPiece);
+            pivots[i].letter = "";
         }
+        else {
+            pivots[i] = boardPiece;
+        }
+        // Put piece in board
+        game.board.pieces[row][col] = boardPiece;
+
         if(dir == 'H') {
             col++;
         }
@@ -315,12 +344,130 @@ Game putWord(Game game, string word, int col, int row, char dir){
             row++;
         }
     }
+    int start;
+    if(dir == 'H') {
+        start = initialCol;
+    }
+    else {
+        start = initialRow;
+    }
+    int points = wordPoints(game, start, initialCol, initialRow, dir);
+    int adyacentPoints = calculateAdyacentPoints(game, pivots, piecesTam, initialCol, initialRow, dir);
+    cout << "------------------------------------" << endl;
+    cout << "Puntos ganados con la palabra: " << points << endl;
+    cout << "Puntos con palabras adyacentes: " << adyacentPoints << endl;
+    player.score += points + adyacentPoints;
+    cout << "Puntos totales: " << player.score << endl;
+    cout << "------------------------------------" << endl;
 
-
-
+    game.players[playerTurn] = player;
     return game;
 }
 
+int wordPoints(Game game, int start, int col, int row, char dir){
+    int points = 0;
+    if(dir == 'H'){
+        col = start;
+    }
+    else{
+        row = start;
+    }
+    while(col < BOARD_SIZE && row < BOARD_SIZE && game.board.pieces[row][col].letter != ""){
+        cout << "Letra: " << game.board.pieces[row][col].letter << " Valor: " << game.board.pieces[row][col].value << endl;
+        points += game.board.pieces[row][col].value;
+        if(dir == 'H'){
+            col++;
+        }
+        else{
+            row++;
+        }
+    }
+    return points;
+}
+
+int calculateAdyacentPoints(Game game, Piece pivots[], int wordTam, int col, int row, char dir){
+    int points = 0;
+    for(int i = 0 ; i < wordTam ; i++){
+        Piece adyacent[BOARD_SIZE];
+        int wordStart = 0;
+        if(pivots[i].letter == ""){
+            if(dir == 'V'){
+                if((col > 0 && game.board.pieces[row][col-1].letter != "") || (col < BOARD_SIZE-1 && game.board.pieces[row][col+1].letter != "")){
+                    wordStart = getAdyacentWord(game, adyacent, col, row, 'H');
+                    points += wordPoints(game, wordStart, col, row, 'H');
+                }
+            }
+            else{
+                if((row > 0 && game.board.pieces[row-1][col].letter != "") || (row < BOARD_SIZE-1 && game.board.pieces[row+1][col].letter != "")){
+                    wordStart = getAdyacentWord(game, adyacent, col, row, 'V');
+                    points += wordPoints(game, wordStart, col, row, 'V');
+                }
+            }
+        }
+        if(dir == 'H'){
+            col++;
+        }
+        else{
+            row++;
+        }
+    }
+    return points;
+}
+
+int getAdyacentWord(Game game, Piece adyacent[], int col, int row, char dir){
+    int inf, sup, start;
+    int adyacentTam = 0;
+    if(dir == 'H'){
+        inf = col;
+        sup = col;
+        while(inf > 0 && game.board.pieces[row][inf-1].letter != ""){
+            inf--;
+        }
+        while(sup < BOARD_SIZE-1 && game.board.pieces[row][sup+1].letter != ""){
+            sup++;
+        }
+        start = inf;
+        while(inf <= sup){
+            adyacent[adyacentTam] = game.board.pieces[row][inf];
+            adyacentTam++;
+            inf++;
+        }
+    }
+    else {
+        inf = row;
+        sup = row;
+        while(inf > 0 && game.board.pieces[inf-1][col].letter != ""){
+            inf--;
+        }
+        while(sup < BOARD_SIZE-1 && game.board.pieces[sup+1][col].letter != ""){
+            sup++;
+        }
+        start = inf;
+        while(inf <= sup){
+            adyacent[adyacentTam] = game.board.pieces[inf][col];
+            adyacentTam++;
+            inf++;
+        }
+    }
+    cout << "Adyacente: ";
+    for(int i = 0 ; i < adyacentTam ; i++){
+        cout << adyacent[i].letter;
+    }
+    cout << endl;
+    return start;
+}
+
+Game givePlayerPieces(Game game){
+    int playerTurn = game.turn%NUM_PLAYERS;
+    Player player = game.players[playerTurn];
+    for(int i = player.numPieces ; i < NUM_PIECES_PLAYER && game.bag.numPieces > 0 ; i++){
+        player.pieces[i] = game.bag.pieces[game.bag.numPieces - 1];
+        game.bag.numPieces--;
+        player.numPieces++;
+    }
+    game.players[playerTurn] = player;
+    return game;
+}
 
 /**************
  - GAME RULES -
@@ -332,6 +479,9 @@ bool validWord(string word) {
     bool exists = false;
     string line;
     while(getline(file, line)) {
+        for(int i = 0; i < word.length(); i++) {
+            word[i] = (char) tolower(word[i]);
+        }
         if(line == word) {
             exists = true;
             break;
@@ -339,22 +489,17 @@ bool validWord(string word) {
     }
     file.close();
     if(!exists) {
-        cout << "La palabra ingresada no es valida.\n" << endl;
+        cout << "La palabra " << word << " no es valida.\n" << endl;
     }
     else {
-        cout << "La palabra ingresada es valida!\n" << endl;
+        cout << "La palabra " << word << " es valida!\n" << endl;
     }
     return exists;
 }
 
-bool validPosition(Game game, Piece word[], int wordTam, int col, int row, char dir) {
+bool validMove(Game game, Piece word[], int wordTam, int col, int row, char dir) {
     bool isInBoard = (col >= 0 && col <= BOARD_SIZE) && (row >= 0 && row <= BOARD_SIZE);
     bool validDirection = dir == 'H' || dir == 'V';
-    bool noOverFlow = (dir == 'H' && col + wordTam <= BOARD_SIZE) || (dir == 'V' && row + wordTam <= BOARD_SIZE);
-    bool overlapDifferent = overlapDifferentLetter(game, word, wordTam, col, row, dir);
-    bool isInCenterFirstTurn = game.turn == 0 && passCenter(wordTam, col, row, dir);
-
-
     // Show personalized error messages
     if(!isInBoard) {
         cout << "\tLa posicion ingresada no es valida." << endl;
@@ -362,17 +507,28 @@ bool validPosition(Game game, Piece word[], int wordTam, int col, int row, char 
     if(!validDirection) {
         cout << "\tLa direccion ingresada no es valida." << endl;
     }
-    if(!noOverFlow) {
-        cout << "\tLa palabra no cabe en la posicion ingresada." << endl;
-    }
-    if(!isInCenterFirstTurn) {
-        cout << "\tLa primera palabra debe pasar por el centro del tablero." << endl;
-    }
-    if(overlapDifferent) {
-        cout << "\tLa palabra se superpone con una letra diferente." << endl;
-    }
 
-    return isInBoard && validDirection && noOverFlow && isInCenterFirstTurn && !overlapDifferent;
+    bool noOverFlow = !overFlow(wordTam, dir, col, row);
+    bool noOverlapDifferent = !overlapDifferentLetter(game, word, wordTam, col, row, dir);
+    bool isInCenterFirstTurn = game.turn == 0 && passCenter(wordTam, col, row, dir) || game.turn != 0;
+    bool hasNeededPieces = playerHasPieces(game, word, wordTam, col, row, dir);
+    bool validAdyacent = validAdyacentWords(game, word, wordTam, col, row, dir);
+
+    bool validMove = isInBoard && validDirection && noOverFlow && isInCenterFirstTurn && noOverlapDifferent && hasNeededPieces && validAdyacent;
+    if(!validMove){
+        cout << "Esta palabra no se puede poner" << endl;
+    }
+    return validMove;
+}
+
+bool overFlow(int wordTam, char dir, int col, int row){
+    if((dir == 'H' && col + wordTam <= BOARD_SIZE) || (dir == 'V' && row + wordTam <= BOARD_SIZE)){
+        return false;
+    }
+    else{
+        cout << "\tLa palabra no cabe en la posicion ingresada." << endl;
+        return true;
+    }
 }
 
 bool passCenter(int wordTam, int col, int row, char dir) {
@@ -387,6 +543,7 @@ bool passCenter(int wordTam, int col, int row, char dir) {
             row++;
         }
     }
+    cout << "\tLa primera palabra debe pasar por el centro del tablero." << endl;
     return false;
 }
 
@@ -400,12 +557,108 @@ bool overlapDifferentLetter(Game game, Piece word[], int wordTam, int col, int r
             boardLetter = game.board.pieces[row + i][col].letter;
         }
         if((!boardLetter.empty() && boardLetter != "*") && (boardLetter != word[i].letter)) {
+            cout << "\tLa palabra se superpone con una letra diferente." << endl;
             return true;
         }
     }
     return false;
 }
 
+bool playerHasPieces(Game game, Piece word[], int wordTam, int col, int row, char dir){
+    int playerTurn = game.turn%NUM_PLAYERS;
+
+    int numPieces = game.players[playerTurn].numPieces;
+    Piece piecesCopy[numPieces];
+    for(int i = 0 ; i < numPieces ; i++){
+        piecesCopy[i] = game.players[playerTurn].pieces[i];
+    }
+
+    for(int i = 0 ; i < wordTam ; i++){
+        if((game.board.pieces[row][col].letter == "" || game.board.pieces[row][col].letter == "*")){
+            if(pieceInArray(piecesCopy, numPieces, word[i]) == -1){
+                cout << "El jugador no tiene la letra " << word[i].letter << " necesaria para formar la palabra" << endl;
+                return false;
+            }
+            else{
+                numPieces = removePiece(piecesCopy, numPieces, word[i]);
+            }
+        }
+        if(dir == 'H'){
+            col++;
+        }
+        else{
+            row++;
+        }
+    }
+    return true;
+}
+
+bool validAdyacentWords(Game game, Piece word[], int wordTam, int col, int row, char dir){
+    for(int i = 0 ; i < wordTam ; i++){
+        // If the piece is not the pivot
+        if (dir == 'V') {
+            if ((col > 0 && game.board.pieces[row][col - 1].letter != "") ||
+                (col < BOARD_SIZE - 1 && game.board.pieces[row][col + 1].letter != "")) {
+                if (!validAdyacent(game, word[i].letter, col, row, 'H')) {
+                    cout << "La palabra no tiene adyacentes validas" << endl;
+                    return false;
+                }
+            }
+            row++;
+        } else {
+            if ((row > 0 && game.board.pieces[row - 1][col].letter != "") ||
+                (row < BOARD_SIZE - 1 && game.board.pieces[row + 1][col].letter != "")) {
+                if (!validAdyacent(game, word[i].letter, col, row, 'V')) {
+                    cout << "La palabra no tiene adyacentes validas" << endl;
+                    return false;
+                }
+            }
+            col++;
+        }
+    }
+    return true;
+}
+
+bool validAdyacent(Game game, string letter, int col, int row, char dir){
+    int inf, sup;
+    string adyacent = "";
+    if(dir == 'H'){
+        inf = col;
+        sup = col;
+        while(inf > 0 && game.board.pieces[row][inf-1].letter != ""){
+            inf--;
+        }
+        while(sup < BOARD_SIZE-1 && game.board.pieces[row][sup+1].letter != ""){
+            sup++;
+        }
+        while(inf <= sup){
+            adyacent += game.board.pieces[row][inf].letter;
+            if(inf == col && (game.board.pieces[row][inf].letter == "" || game.board.pieces[row][inf].letter == "*")){
+                adyacent += letter;
+            }
+            inf++;
+        }
+    }
+    else {
+        inf = row;
+        sup = row;
+        while(inf > 0 && game.board.pieces[inf-1][col].letter != ""){
+            inf--;
+        }
+        while(sup < BOARD_SIZE-1 && game.board.pieces[sup+1][col].letter != ""){
+            sup++;
+        }
+        while(inf <= sup){
+            adyacent += game.board.pieces[inf][col].letter;
+            if(inf == row && (game.board.pieces[inf][col].letter == "" || game.board.pieces[inf][col].letter == "*")){
+                adyacent += letter;
+            }
+            inf++;
+        }
+    }
+    cout << "Adyacente: " << adyacent << endl;
+    return validWord(adyacent);
+}
 
 /**********
  - UTILS  -
@@ -444,6 +697,29 @@ Board copyBoard(Board original) {
     return newBoard;
 }
 
+int pieceInArray(Piece pieces[], int piecesTam, Piece piece){
+    for(int i = 0 ; i < piecesTam ; i++){
+        if(pieces[i].letter == piece.letter){
+            return i;
+        }
+    }
+    return -1;
+}
+
+int removePiece(Piece pieces[], int piecesTam, Piece piece){
+    int piecePos = pieceInArray(pieces, piecesTam, piece);
+    if(piecePos == -1){
+        cout << "El jugador no posee la pieza con la letra " << piece.letter << endl;
+        return piecesTam;
+    }
+
+    piecesTam--;
+    for(int i = piecePos ; i < piecesTam ; i++){
+        pieces[i] = pieces[i+1];
+    }
+
+    return piecesTam;
+}
 
 /**********
  - MENU  -
@@ -479,10 +755,10 @@ int menu() {
     cout << "-   Bienvenido a SCRABBLE!        -" << endl;
     cout << "------------------------------------\n" << endl;
     string options[] = {
-        "1. Cambiar nombre de jugadores",
-        "2. Iniciar juego",
-        "3. Mostrar registro de resultados",
-        "4. Salir"
+            "1. Cambiar nombre de jugadores",
+            "2. Iniciar juego",
+            "3. Mostrar registro de resultados",
+            "4. Salir"
     };
     // Show menu
     cout << "---------- MENU PRINCIPAL ----------" << endl;
