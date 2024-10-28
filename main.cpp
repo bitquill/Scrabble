@@ -174,7 +174,7 @@ Board initializeBoard() {
             board.pieces[i][j] = piece;
         }
     }
-    board.pieces[7][7].letter = "*";
+    board.pieces[BOARD_SIZE/2][BOARD_SIZE/2].letter = "*";
     return board;
 }
 
@@ -239,10 +239,26 @@ int play() {
     while(!gameIsOver(game)) {
         printGameStatus(game);
         game = playTurn(game);
-        cout << "Presione enter para continuar" << endl;
+        cout << "Presione enter para continuar..." << endl;
         getchar();
     }
     printGameStatus(game);
+    // Winner
+    int maxScore = 0;
+    int winner = 0;
+    for(int i = 0; i < NUM_PLAYERS; i++) {
+        if(game.players[i].score > maxScore) {
+            maxScore = game.players[i].score;
+            winner = i;
+        }
+    }
+    cout << "------------------------------------" << endl;
+    cout << "El juego ha terminado!" << endl;
+    cout << "------------------------------------" << endl;
+    cout << "El ganador es " << game.players[winner].name << " con " << game.players[winner].score << " puntos!" << endl;
+    cout << "------------------------------------" << endl;
+    cout << "Presione enter para continuar..." << endl;
+    getchar();
     return 0;
 }
 
@@ -288,7 +304,7 @@ Game askForWord(Game game) {
                 getline(cin, word);
                 if(word == "") {
                     cout << "Saltando turno..." << endl;
-                    cout << "Presione enter para continuar" << endl;
+                    cout << "Presione enter para continuar..." << endl;
                     getchar();
                     printGameStatus(game);
                     game = skipTurn(game);
@@ -536,7 +552,7 @@ bool validWord(string word) {
     if(!exists) {
         cout << "La palabra " << word << " no es valida." << endl;
         cout << "------------------------------------" << endl;
-        cout << "Presione enter para continuar" << endl;
+        cout << "Presione enter para continuar..." << endl;
         getchar();
     }
     else {
@@ -570,14 +586,14 @@ bool validMove(Game game, Piece word[], int wordTam, int col, int row, char dir)
         cout << "------------------------------------" << endl;
         cout << "Esta palabra no se puede poner" << endl;
         cout << "------------------------------------" << endl;
-        cout << "Presione enter para continuar" << endl;
+        cout << "Presione enter para continuar..." << endl;
         getchar();
         printGameStatus(game);
     } else {
         cout << "------------------------------------" << endl;
         cout << "Esta palabra se puede poner" << endl;
         cout << "------------------------------------" << endl;
-        cout << "Presione enter para continuar" << endl;
+        cout << "Presione enter para continuar..." << endl;
         getchar();
     }
     return validMove;
@@ -832,7 +848,7 @@ int menu() {
         changePlayersNames();
         system("cls");
     }
-
+    system("cls");
     cout << "------------------------------------" << endl;
     cout << "-       Bienvenido a SCRABBLE!     -" << endl;
     cout << "------------------------------------\n" << endl;
