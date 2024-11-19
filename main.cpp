@@ -8,7 +8,7 @@
 
 using namespace std;
 
-#define NUM_PLAYERS 4
+#define NUM_PLAYERS 2
 #define NUM_PIECES 98
 #define BOARD_SIZE 15
 #define NUM_PIECES_PLAYER 7
@@ -263,7 +263,7 @@ int play() {
 }
 
 bool gameIsOver(Game game) {
-    bool skippedTurns = game.skippedTurns == NUM_PLAYERS;
+    bool skippedTurns = game.skippedTurns == NUM_PLAYERS * 2;
     bool playerHasNoPieces = false;
     // check if any player has no pieces
     for(int i = 0; i < NUM_PLAYERS; i++) {
