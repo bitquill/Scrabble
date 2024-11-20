@@ -49,6 +49,13 @@ struct Game {
     int skippedTurns = 0;
 };
 
+// Registro: representa el registro de las partidas
+struct Registry {
+    string name;
+    int wins;
+    int losses;
+};
+
 // Inicialización del juego
 Game initializeGame(); // Inicializa el juego
 bool isFirstTime(); // Verifica si es la primera vez que se ejecuta el juego
@@ -71,6 +78,11 @@ int wordPoints(Game game, int start, int col, int row, char dir); // Calcula los
 int calculateAdyacentPoints(Game game, Piece pivots[], int wordTam, int col, int row, char dir); // Calcula los puntos de las palabras adyacentes
 int getAdyacentWord(Game game, Piece adyacent[], int col, int row, char dir); // Obtiene la palabra adyacente
 Game givePlayerPieces(Game game); // Da las piezas gastadas al jugador si es posible
+
+// Registro de partidas
+void saveResults(Registry playersRegistry[]); // Guarda los resultados de la partida en un archivo
+void showResults(); // Muestra los resultados de las partidas guardadas
+int readRegistry(Registry playersRegistry[]); // Lee los resultados de las partidas guardadas
 
 // Game rules
 bool validWord(string word); // Verifica si la palabra es válida
@@ -270,6 +282,21 @@ int play() {
             winner = i;
         }
     }
+    // Crea el registro de la partida y lo guarda en el archivo
+    Registry registry[NUM_PLAYERS];
+    for(int i = 0 ; i < NUM_PLAYERS ; i++){
+        registry[i].name = game.players[i].name;
+        if(i == winner){
+            registry[i].wins = 1;
+            registry[i].losses = 0;
+        }
+        else{
+            registry[i].wins = 0;
+            registry[i].losses = 1;
+        }
+    }
+    saveResults(registry);
+
     // Imprime el ganador
     cout << "------------------------------------" << endl;
     cout << "El juego ha terminado!" << endl;
@@ -278,6 +305,7 @@ int play() {
     cout << "------------------------------------" << endl;
     cout << "Presione enter para continuar..." << endl;
     getchar();
+
     return 0;
 }
 
@@ -885,6 +913,74 @@ int removePiece(Piece pieces[], int piecesTam, Piece piece){
 }
 
 /**********
+ - Registry -
+ **********/
+
+void saveResults(Registry registry[]) {
+    Registry playersRegistry[100];
+    int numRegistries = readRegistry(playersRegistry);
+
+    // Busca los jugadores y actualiza sus victorias y derrotas
+    for (int i = 0 ; i < NUM_PLAYERS ; i++) {
+        bool found = false;
+        for (int j = 0 ; j < numRegistries ; j++) {
+            if (registry[i].name == playersRegistry[j].name) {
+                playersRegistry[j].wins += registry[i].wins;
+                playersRegistry[j].losses += registry[i].losses;
+                found = true;
+            }
+        }
+        if (!found) {
+            playersRegistry[numRegistries] = registry[i];
+            numRegistries++;
+        }
+    }
+
+    ofstream file(string(FILE_PATH) + "registry.txt");
+    for (int i = 0; i < numRegistries; i++) {
+        file << playersRegistry[i].name << endl;
+        file << playersRegistry[i].wins << " " << playersRegistry[i].losses << endl;
+    }
+
+    file.close();
+}
+
+void showResults() {
+    Registry playersRegistry[100];
+    int numRegistries = readRegistry(playersRegistry);
+    // print the registries
+    cout << "------------------------------------" << endl;
+    for(int i = 0; i < numRegistries; i++) {
+        cout << "Jugador: " << playersRegistry[i].name << endl;
+        cout << "Victorias: " << playersRegistry[i].wins << endl;
+        cout << "Derrotas: " << playersRegistry[i].losses << endl;
+        cout << "------------------------------------" << endl;
+    }
+}
+
+int readRegistry(Registry playersRegistry[]) {
+    int numRegistries = 0;
+    ifstream file(string(FILE_PATH) + "registry.txt");
+    if (!file.is_open()) {
+        cout << "No hay registros de partidas" << endl;
+        return 0;
+    }
+
+    string name;
+    while (getline(file, name)) {
+        Registry registry;
+        registry.name = name;
+        file >> registry.wins >> registry.losses;
+        file.ignore();
+        playersRegistry[numRegistries++] = registry;
+    }
+
+    file.close();
+    return numRegistries;
+}
+
+
+/**********
  - MENU  -
  **********/
 
@@ -899,6 +995,7 @@ void Scrabble() {
                 play();
                 break;
             case 3:
+                showResults();
                 break;
             default:
                 cout << "Opcion invalida." << endl;
